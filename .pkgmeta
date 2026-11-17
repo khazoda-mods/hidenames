@@ -2,6 +2,7 @@ package-as: hidenames
 
 ignore:
   - Assets
+  - README.md
   - HideNames Assets.af
   - .release-notes.txt
 
