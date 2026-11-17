@@ -1,0 +1,11 @@
+package-as: hidenames
+
+ignore:
+  - Assets
+  - HideNames Assets.af
+  - .release-notes.txt
+
+manual-changelog: .release-notes.txt
+
+move-folders:
+  hidenames/hidenames: hidenames

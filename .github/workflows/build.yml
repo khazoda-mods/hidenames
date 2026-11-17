@@ -1,0 +1,42 @@
+name: Publish to CurseForge
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Prepare the release
+        shell: bash
+        env:
+          CF_API_TOKEN: ${{ secrets.CURSEFORGE_PUBLISH_TOKEN }}
+        run: |
+          if [[ -z "$CF_API_TOKEN" ]]; then
+            echo "::error::Set the CURSEFORGE_PUBLISH_TOKEN repository secret."
+            exit 1
+          fi
+          version=$(awk '/^## Version:/ {print $3; exit}' hidenames/hidenames.toc)
+          if [[ ! "$version" =~ ^[0-9]+(\.[0-9]+)+$ ]]; then
+            echo "::error::Expected a release version like 1.0.0 in hidenames/hidenames.toc."
+            exit 1
+          fi
+          git tag --force "$version"
+          git log -1 --format=%B > .release-notes.txt
+
+      - name: Package and upload
+        uses: BigWigsMods/packager@v2
+        with:
+          args: -p 1810915
+          pandoc: "false"
+        env:
+          CF_API_TOKEN: ${{ secrets.CURSEFORGE_PUBLISH_TOKEN }}

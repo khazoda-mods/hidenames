@@ -1,0 +1,8 @@
+## Interface: 16001
+## Title: Hide names when hiding UI (ALT+Z)
+## Notes: Take better screenshots - hide player and creature names automatically when hiding your UI
+## Version: 1.0.0
+## IconTexture: Interface\AddOns\hidenames\Icon.tga
+## SavedVariables: HideNamesMinimapAngle
+
+hidenames.lua
