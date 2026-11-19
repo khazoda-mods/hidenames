@@ -3,6 +3,8 @@ local enabled = true
 
 -- name and nameplate settings to override while the UI is hidden.
 local hiddenValues = {
+    { "targetHighlightAlwaysShown", "0" },
+    { "Outline", "0" },
     { "UnitNameNPC", "0" },
     { "UnitNameHostleNPC", "0" },
     { "UnitNameInteractiveNPC", "0" },
