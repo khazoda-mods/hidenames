@@ -83,89 +83,50 @@ local function UpdateNames()
 end
 
 -- button tooltips for left and right click
-local function ShowMinimapTooltip(button)
-    if button:GetScript("OnUpdate") then
-        return
-    end
-
+local displayedTooltip
+local function ShowMinimapTooltip(tooltip)
+    displayedTooltip = tooltip
     local on, off = "|cff33ff66ON|r", "|cffa0a0a0OFF|r"
     local addonState = enabled and on or off
     local playerNameState = HideNamesShowPlayerNames and "|cffe7ff4dSHOW|r" or "|cff46cfffHIDE|r"
-    GameTooltip:SetOwner(button, "ANCHOR_LEFT")
-    GameTooltip:SetText(C_AddOns.GetAddOnMetadata(addonName, "Title"), NORMAL_FONT_COLOR:GetRGB())
-    GameTooltip:AddLine("Left-click to toggle addon ( " .. addonState .. " )", 1, 1, 1)
-    GameTooltip:AddLine("Right click to hide/show player names ( " .. playerNameState .. " )", 1, 1, 1)
-    GameTooltip:Show()
+    tooltip:SetText(C_AddOns.GetAddOnMetadata(addonName, "Title"), NORMAL_FONT_COLOR:GetRGB())
+    tooltip:AddLine("Left-click to toggle addon ( " .. addonState .. " )", 1, 1, 1)
+    tooltip:AddLine("Right click to hide/show player names ( " .. playerNameState .. " )", 1, 1, 1)
 end
 
--- keep the button on the minimap rim, remember angle and make draggable
-local function PositionMinimapButton(button)
-    local angle = HideNamesMinimapAngle or math.rad(225)
-    local radius = Minimap:GetWidth() / 2 + 4
-    button:ClearAllPoints()
-    button:SetPoint("CENTER", Minimap, "CENTER", math.cos(angle) * radius, math.sin(angle) * radius)
-end
-
-local function DragMinimapButton(button)
-    local x, y = GetCursorPosition()
-    local centerX, centerY = Minimap:GetCenter()
-    local scale = Minimap:GetEffectiveScale()
-    HideNamesMinimapAngle = math.atan2(y / scale - centerY, x / scale - centerX)
-    PositionMinimapButton(button)
-end
-
-local function StopDragging(button)
-    button:SetScript("OnUpdate", nil)
-end
-
--- add minimap button and handle clicks
+-- register minimap button with lib (used to be custom but that was breaking with leatrix and such)
 local function CreateMinimapButton()
-    local button = CreateFrame("Button", addonName, Minimap)
-    button:SetSize(31, 31)
-    button:SetFrameStrata("MEDIUM")
-    button:SetFrameLevel(Minimap:GetFrameLevel() + 5)
-    PositionMinimapButton(button)
+    local brokerLib = LibStub and LibStub("LibDataBroker-1.1", true)
+    local iconLib = LibStub and LibStub("LibDBIcon-1.0", true)
+    if not brokerLib or not iconLib then return end
+    if not HideNamesMinimapDB then
+        HideNamesMinimapDB = { minimapPos = math.deg(HideNamesMinimapAngle or math.rad(225)) }
+    end
+    HideNamesMinimapAngle = nil
 
-    -- use Blizzard's circular mask, minimap rim, and mouseover highlight
-    local icon = button:CreateTexture(nil, "ARTWORK")
-    icon:SetSize(20, 20)
-    icon:SetPoint("TOPLEFT", 7, -5)
-    icon:SetTexture(C_AddOns.GetAddOnMetadata(addonName, "IconTexture"))
-    local mask = button:CreateMaskTexture()
-    mask:SetAllPoints(icon)
-    mask:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask", "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
-    icon:AddMaskTexture(mask)
+    local launcher = brokerLib:NewDataObject(addonName, {
+        type = "launcher",
+        label = C_AddOns.GetAddOnMetadata(addonName, "Title"),
+        icon = C_AddOns.GetAddOnMetadata(addonName, "IconTexture"),
+        OnTooltipShow = ShowMinimapTooltip,
+        OnLeave = function()
+            displayedTooltip = nil
+        end,
+        OnClick = function(self, mouseButton)
+            if mouseButton == "RightButton" then
+                HideNamesShowPlayerNames = not HideNamesShowPlayerNames
+            elseif mouseButton == "LeftButton" then
+                enabled = not enabled
+            end
+            UpdateNames()
 
-    local rim = button:CreateTexture(nil, "OVERLAY")
-    rim:SetSize(53, 53)
-    rim:SetPoint("TOPLEFT")
-    rim:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
-    button:SetHighlightTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
-
-    button:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-    button:RegisterForDrag("LeftButton")
-    button:SetScript("OnDragStart", function(self)
-        GameTooltip:Hide()
-        self:SetScript("OnUpdate", DragMinimapButton)
-    end)
-    button:SetScript("OnDragStop", StopDragging)
-    button:SetScript("OnHide", StopDragging)
-    button:SetScript("OnEnter", ShowMinimapTooltip)
-    button:SetScript("OnLeave", function()
-        GameTooltip:Hide()
-    end)
-    button:SetScript("OnClick", function(self, mouseButton)
-        if mouseButton == "RightButton" then
-            HideNamesShowPlayerNames = not HideNamesShowPlayerNames
-        else
-            enabled = not enabled
-        end
-        UpdateNames()
-
-        if GameTooltip:IsOwned(self) then
-            ShowMinimapTooltip(self)
-        end
-    end)
+            if displayedTooltip and displayedTooltip:IsOwned(self) then
+                ShowMinimapTooltip(displayedTooltip)
+                displayedTooltip:Show()
+            end
+        end,
+    })
+    iconLib:Register(addonName, launcher, HideNamesMinimapDB)
 end
 
 -- hook into UI on login and clear addon's overrides on logout

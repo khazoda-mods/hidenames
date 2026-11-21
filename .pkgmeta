@@ -10,3 +10,6 @@ manual-changelog: .release-notes.txt
 
 move-folders:
   hidenames/hidenames: hidenames
+
+required-dependencies:
+  - libdbicon-1-0
