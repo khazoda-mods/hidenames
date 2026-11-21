@@ -1,7 +1,7 @@
 ## Interface: 16001, 120107
 ## Title: Hide names when hiding UI (ALT+Z)
 ## Notes: Take better screenshots - hide player and creature names automatically when hiding your UI
-## Version: 1.1.2
+## Version: 1.1.3
 ## IconTexture: Interface\AddOns\hidenames\Icon.tga
 ## OptionalDeps: LibDBIcon-1.0
 ## SavedVariables: HideNamesMinimapAngle, HideNamesShowPlayerNames, HideNamesMinimapDB

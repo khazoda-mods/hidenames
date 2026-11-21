@@ -1,10 +1,15 @@
 local addonName = ...
 local enabled = true
 
--- name and nameplate settings to override while the UI is hidden.
+-- things to hide with the UI
 local hiddenValues = {
     { "targetHighlightAlwaysShown", "0" },
     { "Outline", "0" },
+    { "SoftTargetIconEnemy", "0" },
+    { "SoftTargetIconInteract", "0" },
+    { "SoftTargetIconGameObject", "0" },
+    { "SoftTargetLowPriorityIcons", "0" },
+    { "SoftTargetInteract", "0" },
     { "UnitNameNPC", "0" },
     { "UnitNameHostleNPC", "0" },
     { "UnitNameInteractiveNPC", "0" },
@@ -25,7 +30,6 @@ local hiddenValues = {
 -- keep player settings for names in SHOW mode
 local playerSettings = {
     "UnitNameOwn",
-    "UnitSurnameOwn",
     "UnitNameFocused",
     "UnitNameFriendlyPlayerName",
     "UnitNameEnemyPlayerName",
@@ -41,6 +45,13 @@ local activeOverrides = {}
 
 -- restore previous overriden settings
 local function ClearOverride(name)
+    -- keep interact override tracked until combat ends
+    if name == "SoftTargetInteract" and InCombatLockdown() then return end
+
+    -- reapply
+    if name:match("^SoftTarget") then
+        C_CVar.SetTempCVar(name, activeOverrides[name])
+    end
     C_CVar.RemoveTempCVar(name)
     activeOverrides[name] = nil
 end
@@ -53,11 +64,13 @@ end
 
 -- tracks only temporary changes the client accepted
 local function ApplyOverride(name, value)
+    if name == "SoftTargetInteract" and InCombatLockdown() then return end
+
     local currentValue = C_CVar.GetCVar(name)
     if currentValue and currentValue ~= value then
         C_CVar.SetTempCVar(name, value)
         if C_CVar.GetCVar(name) == value then
-            activeOverrides[name] = true
+            activeOverrides[name] = currentValue
         end
     end
 end
@@ -133,6 +146,7 @@ end
 local events = CreateFrame("Frame")
 events:RegisterEvent("PLAYER_LOGIN")
 events:RegisterEvent("PLAYER_LOGOUT")
+events:RegisterEvent("PLAYER_REGEN_ENABLED")
 events:SetScript("OnEvent", function(_, event)
     if event == "PLAYER_LOGOUT" then
         ClearOverrides()
@@ -140,6 +154,8 @@ events:SetScript("OnEvent", function(_, event)
         UIParent:HookScript("OnHide", UpdateNames)
         UIParent:HookScript("OnShow", UpdateNames)
         CreateMinimapButton()
+        UpdateNames()
+    elseif event == "PLAYER_REGEN_ENABLED" and activeOverrides.SoftTargetInteract then
         UpdateNames()
     end
 end)
