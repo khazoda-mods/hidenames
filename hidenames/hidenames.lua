@@ -1,5 +1,5 @@
 local addonName = ...
-local enabled = true
+local interactCVar = "SoftTargetInteract"
 
 -- things to hide with the UI
 local hiddenValues = {
@@ -9,7 +9,6 @@ local hiddenValues = {
     { "SoftTargetIconInteract", "0" },
     { "SoftTargetIconGameObject", "0" },
     { "SoftTargetLowPriorityIcons", "0" },
-    { "SoftTargetInteract", "0" },
     { "UnitNameNPC", "0" },
     { "UnitNameHostleNPC", "0" },
     { "UnitNameInteractiveNPC", "0" },
@@ -46,7 +45,7 @@ local activeOverrides = {}
 -- restore previous overriden settings
 local function ClearOverride(name)
     -- keep interact override tracked until combat ends
-    if name == "SoftTargetInteract" and InCombatLockdown() then return end
+    if name == interactCVar and InCombatLockdown() then return end
 
     -- reapply
     if name:match("^SoftTarget") then
@@ -64,7 +63,7 @@ end
 
 -- tracks only temporary changes the client accepted
 local function ApplyOverride(name, value)
-    if name == "SoftTargetInteract" and InCombatLockdown() then return end
+    if name == interactCVar and InCombatLockdown() then return end
 
     local currentValue = C_CVar.GetCVar(name)
     if currentValue and currentValue ~= value then
@@ -77,13 +76,19 @@ end
 
 -- hide names or restore them when the UI is hidden/shown
 local function UpdateNames()
-    if not enabled or UIParent:IsShown() then
+    if HideNamesDisabled or UIParent:IsShown() then
         ClearOverrides()
         return
     end
 
     for _, setting in ipairs(hiddenValues) do
         ApplyOverride(setting[1], setting[2])
+    end
+
+    if HideNamesSuppressInteractGlow then
+        ApplyOverride(interactCVar, "0")
+    elseif activeOverrides[interactCVar] then
+        ClearOverride(interactCVar)
     end
 
     for _, name in ipairs(playerSettings) do
@@ -95,16 +100,63 @@ local function UpdateNames()
     end
 end
 
--- button tooltips for left and right click
+-- colour refs shared by chat and the minimap tooltip
+local on, off = "|cff33ff66ON|r", "|cffa0a0a0OFF|r"
+local show, hide = "|cffe7ff4dSHOW|r", "|cff46cfffHIDE|r"
+local function ColorInput(text)
+    return "|cffc7aeff" .. text .. "|r"
+end
+
+-- print current slash command settings
+local function PrintSettings()
+    local addonState = HideNamesDisabled and off or on
+    local playerNameState = HideNamesShowPlayerNames and show or hide
+    local glowState = HideNamesSuppressInteractGlow and hide or show
+    print("HideNames " .. addonState .. ", player names " .. playerNameState .. ", interact glow " .. glowState .. ".")
+    if not HideNamesDisabled and HideNamesSuppressInteractGlow then
+        print("The Interact key pauses while the UI is hidden.")
+    end
+end
+
+-- controls for non-minimap-button players
+SLASH_HIDENAMES1 = "/hidenames"
+SlashCmdList.HIDENAMES = function(message)
+    local command, mode = message:lower():match("^%s*(%S+)%s*(.-)%s*$")
+    local showOrHide = mode == "show" or mode == "hide"
+    if mode == "" and (command == "on" or command == "off") then
+        HideNamesDisabled = command == "off"
+    elseif command == "players" and showOrHide then
+        HideNamesShowPlayerNames = mode == "show"
+    elseif command == "glow" and showOrHide then
+        HideNamesSuppressInteractGlow = mode == "hide"
+    else
+        PrintSettings()
+        print(ColorInput("/hidenames on") .. " or " .. ColorInput("off"))
+        print(ColorInput("/hidenames players show") .. " or " .. ColorInput("hide"))
+        print(ColorInput("/hidenames glow show") .. " or " .. ColorInput("hide"))
+        return
+    end
+
+    UpdateNames()
+    PrintSettings()
+end
+
+-- show minimap controls and their current settings
 local displayedTooltip
 local function ShowMinimapTooltip(tooltip)
     displayedTooltip = tooltip
-    local on, off = "|cff33ff66ON|r", "|cffa0a0a0OFF|r"
-    local addonState = enabled and on or off
-    local playerNameState = HideNamesShowPlayerNames and "|cffe7ff4dSHOW|r" or "|cff46cfffHIDE|r"
+    local addonState = HideNamesDisabled and off or on
     tooltip:SetText(C_AddOns.GetAddOnMetadata(addonName, "Title"), NORMAL_FONT_COLOR:GetRGB())
-    tooltip:AddLine("Left-click to toggle addon ( " .. addonState .. " )", 1, 1, 1)
-    tooltip:AddLine("Right click to hide/show player names ( " .. playerNameState .. " )", 1, 1, 1)
+    tooltip:AddLine(ColorInput("Left Click") .. "   Enable/disable add-on ( " .. addonState .. " )", 1, 1, 1)
+    if HideNamesDisabled then return end
+
+    local playerNameState = HideNamesShowPlayerNames and show or hide
+    local glowState = HideNamesSuppressInteractGlow and hide or show
+    tooltip:AddLine(ColorInput("Right Click") .. "   Hide/show player names ( " .. playerNameState .. " )", 1, 1, 1)
+    tooltip:AddLine(ColorInput("Shift + Right Click") .. "   Hide/show interact glow ( " .. glowState .. " )", 1, 1, 1)
+    if HideNamesSuppressInteractGlow then
+        tooltip:AddLine("The Interact key pauses while the UI is hidden.", 0.63, 0.63, 0.63)
+    end
 end
 
 -- register minimap button with lib (used to be custom but that was breaking with leatrix and such)
@@ -126,10 +178,16 @@ local function CreateMinimapButton()
             displayedTooltip = nil
         end,
         OnClick = function(self, mouseButton)
-            if mouseButton == "RightButton" then
-                HideNamesShowPlayerNames = not HideNamesShowPlayerNames
-            elseif mouseButton == "LeftButton" then
-                enabled = not enabled
+            if mouseButton == "LeftButton" then
+                HideNamesDisabled = not HideNamesDisabled
+            elseif mouseButton == "RightButton" and not HideNamesDisabled then
+                if IsShiftKeyDown() then
+                    HideNamesSuppressInteractGlow = not HideNamesSuppressInteractGlow
+                else
+                    HideNamesShowPlayerNames = not HideNamesShowPlayerNames
+                end
+            else
+                return
             end
             UpdateNames()
 
@@ -155,7 +213,8 @@ events:SetScript("OnEvent", function(_, event)
         UIParent:HookScript("OnShow", UpdateNames)
         CreateMinimapButton()
         UpdateNames()
-    elseif event == "PLAYER_REGEN_ENABLED" and activeOverrides.SoftTargetInteract then
+    elseif event == "PLAYER_REGEN_ENABLED" and (activeOverrides[interactCVar]
+        or (HideNamesSuppressInteractGlow and not HideNamesDisabled and not UIParent:IsShown())) then
         UpdateNames()
     end
 end)
