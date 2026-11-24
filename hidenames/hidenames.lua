@@ -39,6 +39,17 @@ local playerSettings = {
     "nameplateShowEnemies",
 }
 
+-- blizz's floating combat numbers
+local combatTextSettings = {
+    "floatingCombatTextCombatDamage_v2",
+    "floatingCombatTextCombatLogPeriodicSpells_v2",
+    "floatingCombatTextPetMeleeDamage_v2",
+    "floatingCombatTextPetSpellDamage_v2",
+    "floatingCombatTextCombatHealing_v2",
+    "floatingCombatTextCombatHealingAbsorbSelf_v2",
+    "floatingCombatTextCombatHealingAbsorbTarget_v2",
+}
+
 -- for remembering which overrides took effect so only they are cleared
 local activeOverrides = {}
 
@@ -74,7 +85,19 @@ local function ApplyOverride(name, value)
     end
 end
 
--- hide names or restore them when the UI is hidden/shown
+-- apply or clear a group of settings while the UI is hidden
+-- don't use this for interact key or any other setting that needs special combat handling
+local function UpdateHiddenSettings(settings, showNormally)
+    for _, name in ipairs(settings) do
+        if not showNormally then
+            ApplyOverride(name, "0")
+        elseif activeOverrides[name] then
+            ClearOverride(name)
+        end
+    end
+end
+
+-- hide world text or restore it when the UI returns
 local function UpdateNames()
     if HideNamesDisabled or UIParent:IsShown() then
         ClearOverrides()
@@ -91,13 +114,8 @@ local function UpdateNames()
         ClearOverride(interactCVar)
     end
 
-    for _, name in ipairs(playerSettings) do
-        if not HideNamesShowPlayerNames then
-            ApplyOverride(name, "0")
-        elseif activeOverrides[name] then
-            ClearOverride(name)
-        end
-    end
+    UpdateHiddenSettings(playerSettings, HideNamesShowPlayerNames)
+    UpdateHiddenSettings(combatTextSettings, HideNamesShowCombatText)
 end
 
 -- colour refs shared by chat and the minimap tooltip
@@ -112,7 +130,9 @@ local function PrintSettings()
     local addonState = HideNamesDisabled and off or on
     local playerNameState = HideNamesShowPlayerNames and show or hide
     local glowState = HideNamesSuppressInteractGlow and hide or show
-    print("HideNames " .. addonState .. ", player names " .. playerNameState .. ", interact glow " .. glowState .. ".")
+    local combatTextState = HideNamesShowCombatText and show or hide
+    print("HideNames " .. addonState .. ", player names " .. playerNameState .. ".")
+    print("Interact glow " .. glowState .. ", combat text " .. combatTextState .. ".")
     if not HideNamesDisabled and HideNamesSuppressInteractGlow then
         print("The Interact key pauses while the UI is hidden.")
     end
@@ -129,11 +149,14 @@ SlashCmdList.HIDENAMES = function(message)
         HideNamesShowPlayerNames = mode == "show"
     elseif command == "glow" and showOrHide then
         HideNamesSuppressInteractGlow = mode == "hide"
+    elseif command == "combat" and showOrHide then
+        HideNamesShowCombatText = mode == "show"
     else
         PrintSettings()
         print(ColorInput("/hidenames on") .. " or " .. ColorInput("off"))
         print(ColorInput("/hidenames players show") .. " or " .. ColorInput("hide"))
         print(ColorInput("/hidenames glow show") .. " or " .. ColorInput("hide"))
+        print(ColorInput("/hidenames combat show") .. " or " .. ColorInput("hide"))
         return
     end
 
@@ -152,11 +175,13 @@ local function ShowMinimapTooltip(tooltip)
 
     local playerNameState = HideNamesShowPlayerNames and show or hide
     local glowState = HideNamesSuppressInteractGlow and hide or show
+    local combatTextState = HideNamesShowCombatText and show or hide
     tooltip:AddLine(ColorInput("Right Click") .. "   Hide/show player names ( " .. playerNameState .. " )", 1, 1, 1)
     tooltip:AddLine(ColorInput("Shift + Right Click") .. "   Hide/show interact glow ( " .. glowState .. " )", 1, 1, 1)
     if HideNamesSuppressInteractGlow then
-        tooltip:AddLine("The Interact key pauses while the UI is hidden.", 0.63, 0.63, 0.63)
+        tooltip:AddLine("    The Interact key pauses while the UI is hidden.", 0.63, 0.63, 0.63)
     end
+    tooltip:AddLine(ColorInput("Ctrl + Right Click") .. "   Hide/show combat text ( " .. combatTextState .. " )", 1, 1, 1)
 end
 
 -- register minimap button with lib (used to be custom but that was breaking with leatrix and such)
@@ -181,7 +206,9 @@ local function CreateMinimapButton()
             if mouseButton == "LeftButton" then
                 HideNamesDisabled = not HideNamesDisabled
             elseif mouseButton == "RightButton" and not HideNamesDisabled then
-                if IsShiftKeyDown() then
+                if IsControlKeyDown() then
+                    HideNamesShowCombatText = not HideNamesShowCombatText
+                elseif IsShiftKeyDown() then
                     HideNamesSuppressInteractGlow = not HideNamesSuppressInteractGlow
                 else
                     HideNamesShowPlayerNames = not HideNamesShowPlayerNames

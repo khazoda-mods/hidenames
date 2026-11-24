@@ -4,6 +4,6 @@
 ## Version: 1.2.0
 ## IconTexture: Interface\AddOns\hidenames\Icon.tga
 ## OptionalDeps: LibDBIcon-1.0
-## SavedVariables: HideNamesMinimapAngle, HideNamesShowPlayerNames, HideNamesMinimapDB, HideNamesSuppressInteractGlow, HideNamesDisabled
+## SavedVariables: HideNamesMinimapAngle, HideNamesShowPlayerNames, HideNamesMinimapDB, HideNamesSuppressInteractGlow, HideNamesDisabled, HideNamesShowCombatText
 
 hidenames.lua
